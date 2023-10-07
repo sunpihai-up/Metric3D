@@ -20,7 +20,7 @@ if __name__=='__main__':
         if d_path == "None":
             continue
         rgb_path = os.path.join(rgb_root, r_path)
-        gt_path = os.path.join(gt_path, d_path)
+        gt_path = os.path.join(gt_root, d_path)
 
         meta_data = {}
         meta_data['cam_in'] = cam_in
