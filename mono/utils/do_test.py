@@ -324,3 +324,52 @@ def do_scalecano_test_with_custom_data(
         print('global match :', eval_error_global)
     else:
         print('missing gt_depth, only save visualizations...')
+
+# TODO:
+def train_prediction(
+    model: torch.nn.Module,
+    cfg: dict,
+    test_data: list,
+    logger: logging.RootLogger,
+    is_distributed: bool = True,
+    local_rank: int = 0,
+):
+
+    show_dir = cfg.show_dir
+    save_interval = 1
+    save_imgs_dir = show_dir + '/vis'
+    os.makedirs(save_imgs_dir, exist_ok=True)
+    save_pcd_dir = show_dir + '/pcd'
+    os.makedirs(save_pcd_dir, exist_ok=True)
+
+    normalize_scale = cfg.data_basic.depth_range[1]
+    dam = MetricAverageMeter(['abs_rel', 'rmse', 'silog', 'delta1', 'delta2', 'delta3'])
+    dam_median = MetricAverageMeter(['abs_rel', 'rmse', 'silog', 'delta1', 'delta2', 'delta3'])
+    dam_global = MetricAverageMeter(['abs_rel', 'rmse', 'silog', 'delta1', 'delta2', 'delta3'])
+    
+    for i, an in tqdm(enumerate(test_data)):
+        rgb_origin = cv2.imread(an['rgb'])[:, :, ::-1].copy()
+        if an['depth'] is not None:
+            gt_depth = cv2.imread(an['depth'], -1)
+            gt_depth_scale = an['depth_scale']
+            gt_depth = gt_depth / gt_depth_scale
+            gt_depth_flag = True
+        else:
+            gt_depth = None
+            gt_depth_flag = False
+        intrinsic = an['intrinsic']
+        if intrinsic is None:
+            intrinsic = [1000.0, 1000.0, rgb_origin.shape[1]/2, rgb_origin.shape[0]/2]
+        rgb_input, cam_models_stacks, pad, label_scale_factor = transform_test_data_scalecano(rgb_origin, intrinsic, cfg.data_basic)
+
+        pred_depth, pred_depth_scale, scale = get_prediction(
+            model = model,
+            input = rgb_input,
+            cam_model = cam_models_stacks,
+            pad_info = pad,
+            scale_info = label_scale_factor,
+            gt_depth = None,
+            normalize_scale = normalize_scale,
+            ori_shape=[rgb_origin.shape[0], rgb_origin.shape[1]],
+        )
+        return pred_depth, pred_depth_scale, scale
